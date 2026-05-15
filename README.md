@@ -67,6 +67,10 @@ call-recorder record -mix=false
 
 # Output in una cartella specifica
 call-recorder record -output ~/Registrazioni
+
+# Avvia la tray icon (accetta gli stessi flag di record)
+call-recorder tray
+call-recorder tray -backend api -lang it
 ```
 
 I file vengono salvati in `./recordings/` con nome `call_<timestamp>.wav` e `call_<timestamp>.txt`.
@@ -152,14 +156,41 @@ Per sentire l'audio mentre registri, crea un Multi-Output Device in Audio MIDI S
 | `-model` | auto-detect | Percorso modello whisper.cpp |
 | `-api-key` | `$OPENAI_API_KEY` | API key OpenAI |
 
+## Tray icon
+
+La tray icon permette di gestire le registrazioni senza usare il terminale.
+
+```bash
+# Backend locale (default)
+call-recorder tray
+
+# Backend API OpenAI
+export OPENAI_API_KEY=sk-...
+call-recorder tray -backend api -lang it
+```
+
+Menu disponibile:
+- **Avvia registrazione** — icona verde → rossa, registrazione in background
+- **Ferma registrazione** — salva WAV e avvia trascrizione automatica
+- **Trascrivi ultimo file** — ritrascrive l'ultimo WAV senza registrare di nuovo
+- **Esci** — ferma eventuale registrazione in corso e chiude
+
+**Dipendenza sistema** (Linux):
+```bash
+sudo pacman -S libappindicator-gtk3   # Arch
+sudo apt install libappindicator3-dev  # Ubuntu/Debian
+```
+
 ## Struttura
 
 | File | Ruolo |
 |---|---|
 | `main.go` | Entry point, routing comandi |
 | `devices.go` | Enumerazione device, auto-detect loopback |
-| `recorder.go` | Loop di registrazione, mix, gestione Ctrl+C |
+| `recorder.go` | Loop di registrazione, mix, gestione stop |
 | `wav.go` | Scrittura WAV 16-bit PCM (zero dipendenze esterne) |
 | `transcribe.go` | Trascrizione locale (whisper.cpp / openai-whisper) e API |
+| `tray.go` | System tray icon e menu |
+| `icons.go` | Icone generate programmaticamente |
 | `rec.sh` | Script di avvio senza installazione |
 | `Makefile` | `build`, `install`, `clean`, `dist`, `tag` |
