@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/signal"
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/gen2brain/malgo"
@@ -120,7 +118,7 @@ func (cs *captureStream) drain() []float32 {
 	return out
 }
 
-func record(ctx *malgo.AllocatedContext, cfg *RecordConfig) ([]string, error) {
+func record(ctx *malgo.AllocatedContext, cfg *RecordConfig, stopCh <-chan struct{}) ([]string, error) {
 	// Resolve mic
 	var micInfo *malgo.DeviceInfo
 	if cfg.MicName != "" {
@@ -176,9 +174,7 @@ func record(ctx *malgo.AllocatedContext, cfg *RecordConfig) ([]string, error) {
 	}
 
 	fmt.Println("\n[call-recorder] Recording... Press Ctrl+C to stop.\n")
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	<-sig
+	<-stopCh
 	fmt.Println("\n[call-recorder] Stopping...")
 
 	micStream.stop()

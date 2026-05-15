@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/gen2brain/malgo"
 )
@@ -37,7 +39,14 @@ func main() {
 			printUsage()
 			os.Exit(1)
 		}
-		files, err := record(ctx, cfg)
+		stopCh := make(chan struct{})
+		go func() {
+			sig := make(chan os.Signal, 1)
+			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+			<-sig
+			close(stopCh)
+		}()
+		files, err := record(ctx, cfg, stopCh)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Recording error: %v\n", err)
 			os.Exit(1)
@@ -46,6 +55,9 @@ func main() {
 		for _, f := range files {
 			fmt.Println(" →", f)
 		}
+
+	case "tray":
+		runTray()
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
@@ -63,6 +75,9 @@ USAGE:
 
   call-recorder record [OPTIONS]
       Start recording (Ctrl+C to stop)
+
+  call-recorder tray
+      Launch system tray icon
 
 OPTIONS:
   -mic     <name>   Mic device (partial name match, default: system default)
