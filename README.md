@@ -33,7 +33,8 @@ Scarica dalla pagina **Releases** (`/-/releases`):
 | Linux x86_64 | `call-recorder-linux-amd64` | `call-recorder-linux-amd64-cli` |
 | Linux ARM64 | `call-recorder-linux-arm64` | `call-recorder-linux-arm64-cli` |
 | Windows x86_64 | `call-recorder-windows-amd64.exe` | — |
-| macOS | compila da sorgente | compila da sorgente |
+| macOS x86_64 (Intel) | `call-recorder-darwin-amd64` | `call-recorder-darwin-amd64-cli` |
+| macOS ARM64 (Apple Silicon) | `call-recorder-darwin-arm64` | `call-recorder-darwin-arm64-cli` |
 
 ```bash
 # Linux / macOS
@@ -83,7 +84,7 @@ call-recorder record -mix=false
 call-recorder record -output ~/Registrazioni
 
 # Avvia la tray icon (accetta gli stessi flag di record)
-call-recorder tray -lang it -backend api
+call-recorder tray -lang it
 ```
 
 I file vengono salvati in `./recordings/` con nome `call_<timestamp>.wav` e `call_<timestamp>.txt`.
@@ -96,9 +97,9 @@ La tray icon permette di gestire le registrazioni senza usare il terminale.
 # Backend locale (default)
 call-recorder tray
 
-# Backend API OpenAI
+# Backend API OpenAI — rilevato automaticamente se OPENAI_API_KEY è impostata
 export OPENAI_API_KEY=sk-...
-call-recorder tray -backend api -lang it
+call-recorder tray -lang it
 ```
 
 Menu disponibile:
@@ -143,9 +144,14 @@ wget -O ~/.local/share/whisper/models/ggml-large-v3-turbo.bin \
 
 Invia il file audio all'API di OpenAI. Costo: ~$0.006/minuto.
 
+Se `OPENAI_API_KEY` è impostata nell'ambiente, il backend API viene selezionato automaticamente senza bisogno di `-backend api`.
+
 ```bash
 export OPENAI_API_KEY=sk-...
-call-recorder record -lang it -backend api
+call-recorder record -lang it
+
+# Per forzare il backend locale anche con la chiave impostata:
+call-recorder record -lang it -backend local
 ```
 
 I file sono registrati a 16kHz mono (~18 MB/10 min). Per call > ~13 minuti `ffmpeg` comprime automaticamente in MP3 16kbps prima dell'invio (supporta call fino a ~3.5 ore).
@@ -186,7 +192,7 @@ Per sentire l'audio mentre registri, crea un Multi-Output Device in Audio MIDI S
 | `-output` | `./recordings` | Cartella di output |
 | `-mix` | `true` | Mixa mic e sistema in un unico file |
 | `-lang` | `auto` | Lingua per la trascrizione (es. `it`, `en`) |
-| `-backend` | `local` | Backend trascrizione: `local` \| `api` |
+| `-backend` | `local` (auto `api` se `$OPENAI_API_KEY` è impostata) | Backend trascrizione: `local` \| `api` |
 | `-model` | auto-detect | Percorso modello whisper.cpp |
 | `-api-key` | `$OPENAI_API_KEY` | API key OpenAI |
 
@@ -206,3 +212,4 @@ Per sentire l'audio mentre registri, crea un Multi-Output Device in Audio MIDI S
 | `install.ps1` | Script di installazione Windows |
 | `rec.sh` | Avvio rapido senza installazione |
 | `Makefile` | `build`, `build-cli`, `install`, `clean`, `dist`, `tag` |
+| `.github/workflows/macos.yml` | CI GitHub Actions — build macOS (Intel + Apple Silicon) |
