@@ -69,6 +69,8 @@ OPTIONS:
   -system  <name>   System audio device (partial name match, auto-detected on Linux/Windows)
   -output  <dir>    Output directory (default: ./recordings)
   -mix=false        Save mic and system as separate WAV files
+  -lang    <lang>   Transcription language (default: auto — rilevamento automatico)
+  -model   <path>   Path to whisper.cpp model (auto-detected if empty)
 
 EXAMPLES:
   call-recorder list

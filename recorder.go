@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -22,6 +23,8 @@ type RecordConfig struct {
 	SystemName string
 	OutputDir  string
 	Mix        bool
+	Lang       string
+	ModelPath  string
 }
 
 func parseRecordFlags(args []string) (*RecordConfig, error) {
@@ -30,6 +33,8 @@ func parseRecordFlags(args []string) (*RecordConfig, error) {
 	system := fs.String("system", "", "System audio device name (partial match)")
 	output := fs.String("output", "recordings", "Output directory")
 	mix := fs.Bool("mix", true, "Merge into single WAV file")
+	lang := fs.String("lang", "auto", "Transcription language (e.g. it, en, auto)")
+	model := fs.String("model", "", "Path to whisper.cpp model file (auto-detected if empty)")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -39,6 +44,8 @@ func parseRecordFlags(args []string) (*RecordConfig, error) {
 		SystemName: *system,
 		OutputDir:  *output,
 		Mix:        *mix,
+		Lang:       *lang,
+		ModelPath:  *model,
 	}, nil
 }
 
@@ -210,6 +217,29 @@ func record(ctx *malgo.AllocatedContext, cfg *RecordConfig) ([]string, error) {
 				return nil, err
 			}
 			saved = append(saved, path)
+		}
+	}
+
+	// Transcribe the mixed file (or the mic file as fallback)
+	var toTranscribe string
+	if cfg.Mix && len(saved) > 0 {
+		toTranscribe = saved[0]
+	} else {
+		for _, f := range saved {
+			if strings.HasSuffix(f, "_mic.wav") {
+				toTranscribe = f
+				break
+			}
+		}
+	}
+
+	if toTranscribe != "" {
+		fmt.Println("\n[transcribe] Avvio trascrizione...")
+		txt, err := transcribe(toTranscribe, cfg.ModelPath, cfg.Lang)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[transcribe] errore: %v\n", err)
+		} else if txt != "" {
+			saved = append(saved, txt)
 		}
 	}
 
