@@ -1,38 +1,20 @@
 #Requires -Version 5
 $ErrorActionPreference = "Stop"
 
-$Gitlab  = "https://gitlab.simultech.it"
-$Project = "simultech/call-recorder"
+$Repo    = "Simul-Tech/call-recorder"
 $Binary  = "call-recorder"
 $InstDir = "$env:LOCALAPPDATA\Programs\call-recorder"
 $Asset   = "call-recorder-windows-amd64.exe"
 
-# ── Auth ──────────────────────────────────────────────────────────────────────
-
-$Token = $env:GITLAB_TOKEN
-$Headers = @{}
-if ($Token) { $Headers["PRIVATE-TOKEN"] = $Token }
-
 # ── Find latest release ───────────────────────────────────────────────────────
 
-$ProjectEncoded = [Uri]::EscapeDataString($Project)
-$ApiUrl = "$Gitlab/api/v4/projects/$ProjectEncoded/releases"
+$ApiUrl = "https://api.github.com/repos/$Repo/releases/latest"
 
 try {
-    $Releases = Invoke-RestMethod -Uri $ApiUrl -Headers $Headers
-    $Latest = $Releases[0].tag_name
+    $Release = Invoke-RestMethod -Uri $ApiUrl
+    $Latest  = $Release.tag_name
 } catch {
-    Write-Host ""
-    Write-Host "Impossibile recuperare la lista release."
-    if (-not $Token) {
-        Write-Host ""
-        Write-Host "Il repository e' privato. Genera un Personal Access Token su:"
-        Write-Host "  $Gitlab/-/user_settings/personal_access_tokens"
-        Write-Host "(scope: read_api)"
-        Write-Host ""
-        Write-Host "Poi esegui:"
-        Write-Host "  `$env:GITLAB_TOKEN='<token>'; irm .../install.ps1 | iex"
-    }
+    Write-Host "Impossibile recuperare l'ultima release da GitHub."
     exit 1
 }
 
@@ -40,12 +22,12 @@ Write-Host "Ultima release: $Latest"
 
 # ── Download ──────────────────────────────────────────────────────────────────
 
-$PkgUrl = "$Gitlab/api/v4/projects/$ProjectEncoded/packages/generic/$Binary/$Latest/$Asset"
+$DownloadUrl = "https://github.com/$Repo/releases/download/$Latest/$Asset"
 New-Item -ItemType Directory -Force -Path $InstDir | Out-Null
 $Dest = "$InstDir\$Binary.exe"
 
 Write-Host "Scaricando $Asset..."
-Invoke-WebRequest -Uri $PkgUrl -Headers $Headers -OutFile $Dest
+Invoke-WebRequest -Uri $DownloadUrl -OutFile $Dest
 
 # ── Add to PATH ───────────────────────────────────────────────────────────────
 

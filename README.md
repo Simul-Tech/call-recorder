@@ -11,22 +11,22 @@ Usa **[miniaudio](https://miniaud.io/)** tramite `gen2brain/malgo` — libreria 
 **Linux / macOS:**
 ```bash
 # Con tray icon (richiede libappindicator su Linux)
-bash <(curl -fsSL https://gitlab.simultech.it/simultech/call-recorder/-/raw/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Simul-Tech/call-recorder/main/install.sh)
 
 # CLI pura, zero dipendenze di sistema
-bash <(curl -fsSL https://gitlab.simultech.it/simultech/call-recorder/-/raw/main/install.sh) --no-tray
+bash <(curl -fsSL https://raw.githubusercontent.com/Simul-Tech/call-recorder/main/install.sh) --no-tray
 ```
 
 **Windows (PowerShell):**
 ```powershell
-irm https://gitlab.simultech.it/simultech/call-recorder/-/raw/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Simul-Tech/call-recorder/main/install.ps1 | iex
 ```
 
 Lo script rileva automaticamente OS e architettura, scarica il binario corretto e installa le dipendenze necessarie.
 
 ### Binari precompilati
 
-Scarica dalla pagina **Releases** (`/-/releases`):
+Scarica dalla pagina **[Releases](https://github.com/Simul-Tech/call-recorder/releases/latest)**:
 
 | Piattaforma | Con tray | Solo CLI |
 |---|---|---|

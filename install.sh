@@ -1,22 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
-GITLAB="https://gitlab.simultech.it"
-PROJECT="simultech/call-recorder"
+GITHUB="https://github.com"
+REPO="Simul-Tech/call-recorder"
 BINARY="call-recorder"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
-
-# ── Auth ──────────────────────────────────────────────────────────────────────
-
-TOKEN="${GITLAB_TOKEN:-}"
-
-curl_auth() {
-  if [ -n "$TOKEN" ]; then
-    curl -fsSL -H "PRIVATE-TOKEN: $TOKEN" "$@"
-  else
-    curl -fsSL "$@"
-  fi
-}
 
 # ── Detect OS and arch ────────────────────────────────────────────────────────
 
@@ -30,35 +18,31 @@ case "$ARCH" in
 esac
 
 case "$OS" in
-  linux|darwin) ;;
+  linux)  OS_TAG="linux" ;;
+  darwin) OS_TAG="macos" ;;
   *) echo "OS non supportato: $OS — su Windows usa install.ps1"; exit 1 ;;
 esac
+
+if [ "$OS_TAG" = "macos" ] && [ "$ARCH" = "amd64" ]; then
+  echo "Binari precompilati per macOS Intel non disponibili."
+  echo "Compila da sorgente: git clone https://github.com/${REPO} && make build"
+  exit 1
+fi
 
 # ── Choose variant ────────────────────────────────────────────────────────────
 
 if [[ "$*" == *--no-tray* ]]; then
-  ASSET="${BINARY}-${OS}-${ARCH}-cli"
+  ASSET="${BINARY}-${OS_TAG}-${ARCH}-cli"
 else
-  ASSET="${BINARY}-${OS}-${ARCH}"
+  ASSET="${BINARY}-${OS_TAG}-${ARCH}"
 fi
 
-# ── Find latest release via API ───────────────────────────────────────────────
+# ── Find latest release ───────────────────────────────────────────────────────
 
-API="${GITLAB}/api/v4/projects/$(python3 -c "import urllib.parse; print(urllib.parse.quote('${PROJECT}', safe=''))")/releases"
-LATEST=$(curl_auth "$API" 2>/dev/null | grep -oP '"tag_name":"\K[^"]+' | head -1)
+LATEST=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep -oP '"tag_name":"\K[^"]+')
 
 if [ -z "$LATEST" ]; then
-  echo ""
-  echo "Impossibile recuperare la lista release."
-  if [ -z "$TOKEN" ]; then
-    echo ""
-    echo "Il repository è privato. Genera un Personal Access Token su:"
-    echo "  ${GITLAB}/-/user_settings/personal_access_tokens"
-    echo "(scope: read_api)"
-    echo ""
-    echo "Poi esegui:"
-    echo "  GITLAB_TOKEN=<token> bash install.sh"
-  fi
+  echo "Impossibile recuperare l'ultima release da GitHub."
   exit 1
 fi
 
@@ -66,12 +50,12 @@ echo "Ultima release: $LATEST"
 
 # ── Download binary ───────────────────────────────────────────────────────────
 
-PKG_URL="${GITLAB}/api/v4/projects/$(python3 -c "import urllib.parse; print(urllib.parse.quote('${PROJECT}', safe=''))")/packages/generic/${BINARY}/${LATEST}/${ASSET}"
+DOWNLOAD_URL="${GITHUB}/${REPO}/releases/download/${LATEST}/${ASSET}"
 
 TMP=$(mktemp)
 echo "Scaricando ${ASSET}..."
-if ! curl_auth "$PKG_URL" -o "$TMP" 2>/dev/null || [ ! -s "$TMP" ]; then
-  echo "Download fallito. Verifica che il token abbia lo scope 'read_api'."
+if ! curl -fsSL "$DOWNLOAD_URL" -o "$TMP" 2>/dev/null || [ ! -s "$TMP" ]; then
+  echo "Download fallito."
   rm -f "$TMP"
   exit 1
 fi
