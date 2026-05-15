@@ -42,30 +42,6 @@ build-windows-amd64:
   artifacts:
     paths: [call-recorder-windows-amd64.exe]
 
-# ── macOS ────────────────────────────────────────────────────────────────────
-# Richiede un runner macOS registrato con il tag "macos".
-# Senza runner macOS questo job viene semplicemente saltato.
-
-build-macos-amd64:
-  extends: .build-base
-  tags: [macos]
-  script:
-    - CGO_ENABLED=1 GOOS=darwin GOARCH=amd64
-      go build -ldflags="-s -w" -o call-recorder-macos-amd64 .
-  artifacts:
-    paths: [call-recorder-macos-amd64]
-  allow_failure: true
-
-build-macos-arm64:
-  extends: .build-base
-  tags: [macos]
-  script:
-    - CGO_ENABLED=1 GOOS=darwin GOARCH=arm64
-      go build -ldflags="-s -w" -o call-recorder-macos-arm64 .
-  artifacts:
-    paths: [call-recorder-macos-arm64]
-  allow_failure: true
-
 # ── Upload al Package Registry ────────────────────────────────────────────────
 
 upload:
@@ -77,16 +53,10 @@ upload:
     - build-linux-amd64
     - build-linux-arm64
     - build-windows-amd64
-    - job: build-macos-amd64
-      optional: true
-    - job: build-macos-arm64
-      optional: true
   script:
     - |
       for f in call-recorder-linux-amd64 call-recorder-linux-arm64 \
-                call-recorder-windows-amd64.exe \
-                call-recorder-macos-amd64 call-recorder-macos-arm64; do
-        [ -f "$f" ] || continue
+                call-recorder-windows-amd64.exe; do
         curl --fail --header "JOB-TOKEN: $CI_JOB_TOKEN" \
              --upload-file "$f" "${PKG_URL}/${f}"
         echo "uploaded $f"
@@ -114,7 +84,3 @@ release:
           url: "${PKG_URL}/call-recorder-linux-arm64"
         - name: call-recorder-windows-amd64.exe
           url: "${PKG_URL}/call-recorder-windows-amd64.exe"
-        - name: call-recorder-macos-amd64
-          url: "${PKG_URL}/call-recorder-macos-amd64"
-        - name: call-recorder-macos-arm64
-          url: "${PKG_URL}/call-recorder-macos-arm64"
