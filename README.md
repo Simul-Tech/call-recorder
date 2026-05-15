@@ -101,7 +101,6 @@ wget -O ~/.local/share/whisper/models/ggml-large-v3-turbo.bin \
 ### Backend API (OpenAI)
 
 Invia il file audio all'API di OpenAI. Richiede una API key e connessione internet. Costo: ~$0.006/minuto.
-I file più grandi di 25 MB vengono compressi automaticamente con `ffmpeg` prima dell'invio.
 
 ```bash
 export OPENAI_API_KEY=sk-...
@@ -111,7 +110,9 @@ call-recorder record -lang it -backend api
 call-recorder record -lang it -backend api -api-key sk-...
 ```
 
-**Dipendenza opzionale:** `ffmpeg` (per la compressione automatica dei file grandi):
+I file vengono registrati a 16kHz mono (~18 MB per 10 minuti). Per call più lunghe di ~13 minuti il file supera il limite di 25 MB dell'API: `ffmpeg` lo comprime automaticamente a MP3 16kbps prima dell'invio (copre call fino a ~3.5 ore), poi cancella il file temporaneo.
+
+**Dipendenza opzionale:** `ffmpeg` (necessario solo per call > ~13 minuti):
 ```bash
 sudo pacman -S ffmpeg   # Arch
 sudo apt install ffmpeg  # Ubuntu/Debian
