@@ -1,46 +1,62 @@
 #Requires -Version 5
 $ErrorActionPreference = "Stop"
 
-$RepoUrl  = "https://gitlab.simultech.it/simultech/call-recorder"
-$Binary   = "call-recorder"
-$InstDir  = "$env:LOCALAPPDATA\Programs\call-recorder"
-$Asset    = "call-recorder-windows-amd64.exe"
+$Gitlab  = "https://gitlab.simultech.it"
+$Project = "simultech/call-recorder"
+$Binary  = "call-recorder"
+$InstDir = "$env:LOCALAPPDATA\Programs\call-recorder"
+$Asset   = "call-recorder-windows-amd64.exe"
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+$Token = $env:GITLAB_TOKEN
+$Headers = @{}
+if ($Token) { $Headers["PRIVATE-TOKEN"] = $Token }
 
 # ── Find latest release ───────────────────────────────────────────────────────
 
-Write-Host "Recupero ultima release..."
+$ProjectEncoded = [Uri]::EscapeDataString($Project)
+$ApiUrl = "$Gitlab/api/v4/projects/$ProjectEncoded/releases"
+
 try {
-    $Html = Invoke-WebRequest -Uri "$RepoUrl/-/releases/permalink/latest" -UseBasicParsing
-    $Version = [regex]::Match($Html.Content, 'v\d+\.\d+\.\d+').Value
+    $Releases = Invoke-RestMethod -Uri $ApiUrl -Headers $Headers
+    $Latest = $Releases[0].tag_name
 } catch {
-    $Version = $env:RELEASE
-}
-if (-not $Version) {
-    Write-Error "Impossibile recuperare la versione. Imposta `$env:RELEASE = 'v1.0.0'"
+    Write-Host ""
+    Write-Host "Impossibile recuperare la lista release."
+    if (-not $Token) {
+        Write-Host ""
+        Write-Host "Il repository e' privato. Genera un Personal Access Token su:"
+        Write-Host "  $Gitlab/-/user_settings/personal_access_tokens"
+        Write-Host "(scope: read_api)"
+        Write-Host ""
+        Write-Host "Poi esegui:"
+        Write-Host "  `$env:GITLAB_TOKEN='<token>'; irm .../install.ps1 | iex"
+    }
     exit 1
 }
 
-$DownloadUrl = "$RepoUrl/-/releases/$Version/downloads/$Asset"
+Write-Host "Ultima release: $Latest"
 
 # ── Download ──────────────────────────────────────────────────────────────────
 
+$PkgUrl = "$Gitlab/api/v4/projects/$ProjectEncoded/packages/generic/$Binary/$Latest/$Asset"
 New-Item -ItemType Directory -Force -Path $InstDir | Out-Null
 $Dest = "$InstDir\$Binary.exe"
 
-Write-Host "Scaricando $Asset ($Version)..."
-Invoke-WebRequest -Uri $DownloadUrl -OutFile $Dest
+Write-Host "Scaricando $Asset..."
+Invoke-WebRequest -Uri $PkgUrl -Headers $Headers -OutFile $Dest
 
 # ── Add to PATH ───────────────────────────────────────────────────────────────
 
 $UserPath = [Environment]::GetEnvironmentVariable("PATH", "User")
 if ($UserPath -notlike "*$InstDir*") {
     [Environment]::SetEnvironmentVariable("PATH", "$UserPath;$InstDir", "User")
-    Write-Host "Aggiunto al PATH utente: $InstDir"
-    Write-Host "Riapri il terminale per usare 'call-recorder' da qualsiasi cartella."
+    Write-Host "Aggiunto al PATH: $InstDir (riapri il terminale per attivarlo)"
 }
 
 Write-Host ""
-Write-Host "Installato in: $Dest"
+Write-Host "✓ call-recorder $Latest installato in $Dest"
 Write-Host ""
 Write-Host "Utilizzo:"
 Write-Host "  call-recorder list"
