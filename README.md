@@ -33,7 +33,7 @@ Scarica dalla pagina **[Releases](https://github.com/Simul-Tech/call-recorder/re
 | Linux x86_64 | `call-recorder-linux-amd64` | `call-recorder-linux-amd64-cli` |
 | Linux ARM64 | `call-recorder-linux-arm64` | `call-recorder-linux-arm64-cli` |
 | Windows x86_64 | `call-recorder-windows-amd64.exe` | — |
-| macOS Apple Silicon | `call-recorder-darwin-arm64` | `call-recorder-darwin-arm64-cli` |
+| macOS Apple Silicon | `call-recorder-macos-arm64` | — |
 
 ```bash
 # Linux / macOS
@@ -113,6 +113,29 @@ sudo pacman -S libappindicator-gtk3   # Arch
 sudo apt install libappindicator3-1   # Ubuntu/Debian
 sudo dnf install libappindicator-gtk3 # Fedora
 ```
+
+## Autostart
+
+Configura l'avvio automatico della tray al login:
+
+```bash
+# Abilita
+call-recorder autostart enable -lang it
+
+# Verifica
+call-recorder autostart status
+
+# Disabilita
+call-recorder autostart disable
+```
+
+| OS | Meccanismo |
+|---|---|
+| Linux | systemd user service (`~/.config/systemd/user/call-recorder.service`) |
+| macOS | LaunchAgent (`~/Library/LaunchAgents/it.simultech.call-recorder.plist`) |
+| Windows | Registro di sistema (`HKCU\...\Run`) |
+
+Se `OPENAI_API_KEY` è presente nell'ambiente al momento di `autostart enable`, viene inclusa automaticamente nella configurazione del servizio.
 
 ## Trascrizione automatica
 
@@ -207,8 +230,9 @@ Per sentire l'audio mentre registri, crea un Multi-Output Device in Audio MIDI S
 | `tray.go` | System tray icon e menu (build tag: `!notray`) |
 | `tray_stub.go` | Stub per build senza tray (build tag: `notray`) |
 | `icons.go` | Icone generate programmaticamente |
+| `autostart.go` | Autostart: systemd (Linux), LaunchAgent (macOS), Registry (Windows) |
 | `install.sh` | Script di installazione Linux/macOS |
 | `install.ps1` | Script di installazione Windows |
 | `rec.sh` | Avvio rapido senza installazione |
 | `Makefile` | `build`, `build-cli`, `install`, `clean`, `dist`, `tag` |
-| `.github/workflows/macos.yml` | CI GitHub Actions — build macOS (Intel + Apple Silicon) |
+| `.github/workflows/release.yml` | CI GitHub Actions — build tutti i target + GitHub Releases |
