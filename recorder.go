@@ -41,6 +41,12 @@ func parseRecordFlags(args []string) (*RecordConfig, error) {
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
+
+	resolvedBackend := *backend
+	if resolvedBackend == "local" && os.Getenv("OPENAI_API_KEY") != "" {
+		resolvedBackend = "api"
+	}
+
 	return &RecordConfig{
 		MicName:    *mic,
 		SystemName: *system,
@@ -48,7 +54,7 @@ func parseRecordFlags(args []string) (*RecordConfig, error) {
 		Mix:        *mix,
 		Lang:       *lang,
 		ModelPath:  *model,
-		Backend:    *backend,
+		Backend:    resolvedBackend,
 		APIKey:     *apiKey,
 	}, nil
 }
