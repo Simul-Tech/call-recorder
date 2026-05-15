@@ -33,8 +33,7 @@ Scarica dalla pagina **Releases** (`/-/releases`):
 | Linux x86_64 | `call-recorder-linux-amd64` | `call-recorder-linux-amd64-cli` |
 | Linux ARM64 | `call-recorder-linux-arm64` | `call-recorder-linux-arm64-cli` |
 | Windows x86_64 | `call-recorder-windows-amd64.exe` | — |
-| macOS x86_64 (Intel) | `call-recorder-darwin-amd64` | `call-recorder-darwin-amd64-cli` |
-| macOS ARM64 (Apple Silicon) | `call-recorder-darwin-arm64` | `call-recorder-darwin-arm64-cli` |
+| macOS Apple Silicon | `call-recorder-darwin-arm64` | `call-recorder-darwin-arm64-cli` |
 
 ```bash
 # Linux / macOS
