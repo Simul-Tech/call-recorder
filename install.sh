@@ -40,7 +40,7 @@ fi
 # ── Find latest release ───────────────────────────────────────────────────────
 
 RESPONSE=$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null || true)
-LATEST=$(echo "$RESPONSE" | grep -oP '"tag_name":"\K[^"]+' || true)
+LATEST=$(echo "$RESPONSE" | grep -oP '"tag_name":\s*"\K[^"]+' || true)
 
 if [ -z "$LATEST" ]; then
   echo "Impossibile recuperare l'ultima release da GitHub."
