@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - name: Linux x86_64
+            runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            asset: call-recorder-linux-amd64
+
+          - name: Linux ARM64
+            runner: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            asset: call-recorder-linux-arm64
+
+          - name: Windows x86_64
+            runner: windows-latest
+            goos: windows
+            goarch: amd64
+            asset: call-recorder-windows-amd64.exe
+
+          - name: macOS Intel
+            runner: macos-13
+            goos: darwin
+            goarch: amd64
+            asset: call-recorder-macos-amd64
+
+          - name: macOS Apple Silicon
+            runner: macos-latest
+            goos: darwin
+            goarch: arm64
+            asset: call-recorder-macos-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install ARM64 cross-compiler
+        if: matrix.goos == 'linux' && matrix.goarch == 'arm64'
+        run: sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "1"
+        run: |
+          [ "$GOARCH" = "arm64" ] && [ "$GOOS" = "linux" ] && export CC=aarch64-linux-gnu-gcc
+          go build -ldflags="-s -w" -o "${{ matrix.asset }}" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: "call-recorder-*"
+          generate_release_notes: true
