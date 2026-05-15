@@ -33,12 +33,6 @@ jobs:
             goarch: amd64
             asset: call-recorder-windows-amd64.exe
 
-          - name: macOS Intel
-            runner: macos-13
-            goos: darwin
-            goarch: amd64
-            asset: call-recorder-macos-amd64
-
           - name: macOS Apple Silicon
             runner: macos-latest
             goos: darwin
