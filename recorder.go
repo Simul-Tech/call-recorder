@@ -16,7 +16,7 @@ import (
 	"github.com/gen2brain/malgo"
 )
 
-const sampleRate = 44100
+const sampleRate = 16000
 
 type RecordConfig struct {
 	MicName    string

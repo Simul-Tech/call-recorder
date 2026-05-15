@@ -156,19 +156,18 @@ func pythonModelName(preferred string) string {
 // ── API backend ───────────────────────────────────────────────────────────────
 
 func transcribeAPI(wavPath, lang, apiKey string) (string, error) {
-	uploadPath, tmp, err := prepareForAPI(wavPath)
-	if err != nil {
-		return "", err
-	}
-	if tmp {
-		defer os.Remove(uploadPath)
-	}
-
-	info, _ := os.Stat(uploadPath)
+	info, _ := os.Stat(wavPath)
 	fmt.Printf("[transcribe] backend: OpenAI API — file: %s (%.1f MB)\n",
-		filepath.Base(uploadPath), float64(info.Size())/1024/1024)
+		filepath.Base(wavPath), float64(info.Size())/1024/1024)
 
-	text, err := callWhisperAPI(uploadPath, lang, apiKey)
+	if info.Size() > apiMaxBytes {
+		return "", fmt.Errorf(
+			"file troppo grande (%.1f MB > 25 MB) — usa il backend locale: -backend local",
+			float64(info.Size())/1024/1024,
+		)
+	}
+
+	text, err := callWhisperAPI(wavPath, lang, apiKey)
 	if err != nil {
 		return "", err
 	}
@@ -178,53 +177,6 @@ func transcribeAPI(wavPath, lang, apiKey string) (string, error) {
 		return "", fmt.Errorf("salvataggio trascrizione: %w", err)
 	}
 	return outPath, nil
-}
-
-// prepareForAPI returns a path ready to upload (<= 25 MB).
-// If the file is too large it tries to compress it with ffmpeg.
-// Returns (path, isTemp, error).
-func prepareForAPI(wavPath string) (string, bool, error) {
-	info, err := os.Stat(wavPath)
-	if err != nil {
-		return "", false, err
-	}
-	if info.Size() <= apiMaxBytes {
-		return wavPath, false, nil
-	}
-
-	fmt.Printf("[transcribe] file troppo grande (%.1f MB > 25 MB), comprimo con ffmpeg...\n",
-		float64(info.Size())/1024/1024)
-
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		return "", false, fmt.Errorf(
-			"file supera il limite di 25 MB e ffmpeg non è installato per comprimerlo\n"+
-				"  Installa ffmpeg: sudo pacman -S ffmpeg",
-		)
-	}
-
-	mp3Path := strings.TrimSuffix(wavPath, filepath.Ext(wavPath)) + "_upload.mp3"
-	cmd := exec.Command("ffmpeg", "-y",
-		"-i", wavPath,
-		"-ar", "16000", // 16 kHz è sufficiente per il parlato
-		"-ac", "1",     // mono
-		"-b:a", "64k",
-		mp3Path,
-	)
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return "", false, fmt.Errorf("ffmpeg: %w", err)
-	}
-
-	mp3Info, _ := os.Stat(mp3Path)
-	if mp3Info.Size() > apiMaxBytes {
-		os.Remove(mp3Path)
-		return "", false, fmt.Errorf(
-			"file ancora troppo grande dopo la compressione (%.1f MB)\n"+
-				"  Usa il backend locale per registrazioni lunghe: -backend local",
-			float64(mp3Info.Size())/1024/1024,
-		)
-	}
-	return mp3Path, true, nil
 }
 
 func callWhisperAPI(filePath, lang, apiKey string) (string, error) {
