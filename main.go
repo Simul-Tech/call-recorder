@@ -57,7 +57,13 @@ func main() {
 		}
 
 	case "tray":
-		runTray()
+		cfg, err := parseRecordFlags(os.Args[2:])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			printUsage()
+			os.Exit(1)
+		}
+		runTray(cfg)
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])

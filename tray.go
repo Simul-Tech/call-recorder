@@ -10,7 +10,10 @@ import (
 	"github.com/gen2brain/malgo"
 )
 
-func runTray() {
+var traryCfg *RecordConfig
+
+func runTray(cfg *RecordConfig) {
+	traryCfg = cfg
 	systray.Run(trayReady, func() {})
 }
 
@@ -60,7 +63,7 @@ func trayReady() {
 					}
 					defer func() { _ = ctx.Uninit(); ctx.Free() }()
 
-					files, err := record(ctx, trayConfig(), ch)
+					files, err := record(ctx, traryCfg, ch)
 
 					mu.Lock()
 					stopCh = nil
@@ -102,8 +105,7 @@ func trayReady() {
 				}
 				mTranscribe.Disable()
 				go func() {
-					cfg := trayConfig()
-					txt, err := transcribe(wav, cfg.ModelPath, cfg.Lang, cfg.Backend, cfg.APIKey)
+					txt, err := transcribe(wav, traryCfg.ModelPath, traryCfg.Lang, traryCfg.Backend, traryCfg.APIKey)
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "[tray] errore trascrizione: %v\n", err)
 					} else if txt != "" {
@@ -136,11 +138,3 @@ func resetTrayState(mu *sync.Mutex, stopCh *chan struct{}, mStart, mStop *systra
 	systray.SetTooltip("call-recorder — inattivo")
 }
 
-func trayConfig() *RecordConfig {
-	return &RecordConfig{
-		OutputDir: "recordings",
-		Mix:       true,
-		Lang:      "auto",
-		Backend:   "local",
-	}
-}
