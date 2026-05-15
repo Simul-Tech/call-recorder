@@ -12,15 +12,19 @@ variables:
   rules:
     - if: $CI_COMMIT_TAG
 
-# ── Linux ────────────────────────────────────────────────────────────────────
+# ── Linux ─────────────────────────────────────────────────────────────────────
 
 build-linux-amd64:
   extends: .build-base
   script:
     - CGO_ENABLED=1 GOOS=linux GOARCH=amd64
       go build -ldflags="-s -w" -o call-recorder-linux-amd64 .
+    - CGO_ENABLED=1 GOOS=linux GOARCH=amd64
+      go build -ldflags="-s -w" -tags notray -o call-recorder-linux-amd64-cli .
   artifacts:
-    paths: [call-recorder-linux-amd64]
+    paths:
+      - call-recorder-linux-amd64
+      - call-recorder-linux-amd64-cli
 
 build-linux-arm64:
   extends: .build-base
@@ -28,10 +32,14 @@ build-linux-arm64:
     - apt-get update -qq && apt-get install -y -qq gcc-aarch64-linux-gnu
     - CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc
       go build -ldflags="-s -w" -o call-recorder-linux-arm64 .
+    - CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc
+      go build -ldflags="-s -w" -tags notray -o call-recorder-linux-arm64-cli .
   artifacts:
-    paths: [call-recorder-linux-arm64]
+    paths:
+      - call-recorder-linux-arm64
+      - call-recorder-linux-arm64-cli
 
-# ── Windows ──────────────────────────────────────────────────────────────────
+# ── Windows ───────────────────────────────────────────────────────────────────
 
 build-windows-amd64:
   extends: .build-base
@@ -40,9 +48,10 @@ build-windows-amd64:
     - CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc
       go build -ldflags="-s -w" -o call-recorder-windows-amd64.exe .
   artifacts:
-    paths: [call-recorder-windows-amd64.exe]
+    paths:
+      - call-recorder-windows-amd64.exe
 
-# ── Upload al Package Registry ────────────────────────────────────────────────
+# ── Upload ────────────────────────────────────────────────────────────────────
 
 upload:
   stage: upload
@@ -55,14 +64,15 @@ upload:
     - build-windows-amd64
   script:
     - |
-      for f in call-recorder-linux-amd64 call-recorder-linux-arm64 \
+      for f in call-recorder-linux-amd64 call-recorder-linux-amd64-cli \
+                call-recorder-linux-arm64 call-recorder-linux-arm64-cli \
                 call-recorder-windows-amd64.exe; do
         curl --fail --header "JOB-TOKEN: $CI_JOB_TOKEN" \
              --upload-file "$f" "${PKG_URL}/${f}"
         echo "uploaded $f"
       done
 
-# ── Crea la Release ───────────────────────────────────────────────────────────
+# ── Release ───────────────────────────────────────────────────────────────────
 
 release:
   stage: release
@@ -75,12 +85,16 @@ release:
   release:
     name: "Release ${CI_COMMIT_TAG}"
     tag_name: "${CI_COMMIT_TAG}"
-    description: "Binari precompilati per Linux, Windows e macOS."
+    description: "Binari precompilati per Linux e Windows."
     assets:
       links:
-        - name: call-recorder-linux-amd64
+        - name: "Linux x86_64 (con tray)"
           url: "${PKG_URL}/call-recorder-linux-amd64"
-        - name: call-recorder-linux-arm64
+        - name: "Linux x86_64 (CLI, zero deps)"
+          url: "${PKG_URL}/call-recorder-linux-amd64-cli"
+        - name: "Linux ARM64 (con tray)"
           url: "${PKG_URL}/call-recorder-linux-arm64"
-        - name: call-recorder-windows-amd64.exe
+        - name: "Linux ARM64 (CLI, zero deps)"
+          url: "${PKG_URL}/call-recorder-linux-arm64-cli"
+        - name: "Windows x86_64"
           url: "${PKG_URL}/call-recorder-windows-amd64.exe"
