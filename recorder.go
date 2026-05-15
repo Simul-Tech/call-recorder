@@ -25,6 +25,8 @@ type RecordConfig struct {
 	Mix        bool
 	Lang       string
 	ModelPath  string
+	Backend    string // "local" | "api"
+	APIKey     string
 }
 
 func parseRecordFlags(args []string) (*RecordConfig, error) {
@@ -35,6 +37,8 @@ func parseRecordFlags(args []string) (*RecordConfig, error) {
 	mix := fs.Bool("mix", true, "Merge into single WAV file")
 	lang := fs.String("lang", "auto", "Transcription language (e.g. it, en, auto)")
 	model := fs.String("model", "", "Path to whisper.cpp model file (auto-detected if empty)")
+	backend := fs.String("backend", "local", "Transcription backend: local | api")
+	apiKey := fs.String("api-key", "", "OpenAI API key (default: $OPENAI_API_KEY)")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -46,6 +50,8 @@ func parseRecordFlags(args []string) (*RecordConfig, error) {
 		Mix:        *mix,
 		Lang:       *lang,
 		ModelPath:  *model,
+		Backend:    *backend,
+		APIKey:     *apiKey,
 	}, nil
 }
 
@@ -235,7 +241,7 @@ func record(ctx *malgo.AllocatedContext, cfg *RecordConfig) ([]string, error) {
 
 	if toTranscribe != "" {
 		fmt.Println("\n[transcribe] Avvio trascrizione...")
-		txt, err := transcribe(toTranscribe, cfg.ModelPath, cfg.Lang)
+		txt, err := transcribe(toTranscribe, cfg.ModelPath, cfg.Lang, cfg.Backend, cfg.APIKey)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[transcribe] errore: %v\n", err)
 		} else if txt != "" {

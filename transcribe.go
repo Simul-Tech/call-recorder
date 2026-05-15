@@ -2,20 +2,31 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
-// whisperBackend represents a working whisper binary.
+const (
+	apiMaxBytes  = 25 * 1024 * 1024 // 25 MB — limite OpenAI
+	apiEndpoint  = "https://api.openai.com/v1/audio/transcriptions"
+	apiModel     = "whisper-1"
+)
+
+// ── Local backend ─────────────────────────────────────────────────────────────
+
 type whisperBackend struct {
 	path string
 	kind string // "cpp" | "python"
 }
 
-// Candidates in preference order: whisper.cpp first, Python fallback.
 var whisperCandidates = []struct{ name, kind string }{
 	{"whisper-cli", "cpp"},
 	{"whisper-cpp", "cpp"},
@@ -39,7 +50,6 @@ var modelSearchDirs = []string{
 	".",
 }
 
-// findWhisper returns the first binary that actually loads (no missing shared libs).
 func findWhisper() *whisperBackend {
 	for _, c := range whisperCandidates {
 		path, err := exec.LookPath(c.name)
@@ -53,7 +63,6 @@ func findWhisper() *whisperBackend {
 	return nil
 }
 
-// binaryWorks runs --help and checks there are no shared-library load errors.
 func binaryWorks(path string) bool {
 	var stderr bytes.Buffer
 	cmd := exec.Command(path, "--help")
@@ -85,12 +94,7 @@ func findModel(preferred string) string {
 	return ""
 }
 
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
-func transcribe(wavPath, modelPath, lang string) (string, error) {
+func transcribeLocal(wavPath, modelPath, lang string) (string, error) {
 	backend := findWhisper()
 	if backend == nil {
 		printWhisperInstallHelp()
@@ -101,7 +105,6 @@ func transcribe(wavPath, modelPath, lang string) (string, error) {
 	outBase := strings.TrimSuffix(wavPath, filepath.Ext(wavPath))
 
 	var cmd *exec.Cmd
-
 	switch backend.kind {
 	case "cpp":
 		model := findModel(modelPath)
@@ -111,21 +114,14 @@ func transcribe(wavPath, modelPath, lang string) (string, error) {
 		}
 		fmt.Printf("[transcribe] backend: whisper.cpp — modello: %s\n", filepath.Base(model))
 		cmd = exec.Command(backend.path,
-			"-m", model,
-			"-f", wavPath,
-			"-l", lang,
-			"-otxt",
-			"-of", outBase,
+			"-m", model, "-f", wavPath, "-l", lang, "-otxt", "-of", outBase,
 		)
-
 	case "python":
 		model := pythonModelName(modelPath)
 		fmt.Printf("[transcribe] backend: openai-whisper — modello: %s (cpu)\n", model)
 		args := []string{wavPath,
-			"--model", model,
-			"--device", "cpu",
-			"--output_dir", outDir,
-			"--output_format", "txt",
+			"--model", model, "--device", "cpu",
+			"--output_dir", outDir, "--output_format", "txt",
 		}
 		if lang != "auto" {
 			args = append(args, "--language", lang)
@@ -139,7 +135,6 @@ func transcribe(wavPath, modelPath, lang string) (string, error) {
 		return "", fmt.Errorf("whisper: %w", err)
 	}
 
-	// whisper.cpp writes <outBase>.txt; openai-whisper writes <basename>.txt in outDir
 	if fileExists(outBase + ".txt") {
 		return outBase + ".txt", nil
 	}
@@ -147,31 +142,180 @@ func transcribe(wavPath, modelPath, lang string) (string, error) {
 	if fileExists(alt) {
 		return alt, nil
 	}
-	return "", fmt.Errorf("file trascrizione non trovato dopo l'esecuzione")
+	return "", fmt.Errorf("file trascrizione non trovato")
 }
 
-// pythonModelName converts a whisper.cpp model path/name to an openai-whisper model name.
 func pythonModelName(preferred string) string {
 	if preferred == "" {
-		return "small" // buon compromesso velocità/qualità su CPU
+		return "small"
 	}
 	base := strings.TrimPrefix(filepath.Base(preferred), "ggml-")
-	base = strings.TrimSuffix(base, ".bin")
-	return base
+	return strings.TrimSuffix(base, ".bin")
 }
 
+// ── API backend ───────────────────────────────────────────────────────────────
+
+func transcribeAPI(wavPath, lang, apiKey string) (string, error) {
+	uploadPath, tmp, err := prepareForAPI(wavPath)
+	if err != nil {
+		return "", err
+	}
+	if tmp {
+		defer os.Remove(uploadPath)
+	}
+
+	info, _ := os.Stat(uploadPath)
+	fmt.Printf("[transcribe] backend: OpenAI API — file: %s (%.1f MB)\n",
+		filepath.Base(uploadPath), float64(info.Size())/1024/1024)
+
+	text, err := callWhisperAPI(uploadPath, lang, apiKey)
+	if err != nil {
+		return "", err
+	}
+
+	outPath := strings.TrimSuffix(wavPath, filepath.Ext(wavPath)) + ".txt"
+	if err := os.WriteFile(outPath, []byte(text), 0644); err != nil {
+		return "", fmt.Errorf("salvataggio trascrizione: %w", err)
+	}
+	return outPath, nil
+}
+
+// prepareForAPI returns a path ready to upload (<= 25 MB).
+// If the file is too large it tries to compress it with ffmpeg.
+// Returns (path, isTemp, error).
+func prepareForAPI(wavPath string) (string, bool, error) {
+	info, err := os.Stat(wavPath)
+	if err != nil {
+		return "", false, err
+	}
+	if info.Size() <= apiMaxBytes {
+		return wavPath, false, nil
+	}
+
+	fmt.Printf("[transcribe] file troppo grande (%.1f MB > 25 MB), comprimo con ffmpeg...\n",
+		float64(info.Size())/1024/1024)
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		return "", false, fmt.Errorf(
+			"file supera il limite di 25 MB e ffmpeg non è installato per comprimerlo\n"+
+				"  Installa ffmpeg: sudo pacman -S ffmpeg",
+		)
+	}
+
+	mp3Path := strings.TrimSuffix(wavPath, filepath.Ext(wavPath)) + "_upload.mp3"
+	cmd := exec.Command("ffmpeg", "-y",
+		"-i", wavPath,
+		"-ar", "16000", // 16 kHz è sufficiente per il parlato
+		"-ac", "1",     // mono
+		"-b:a", "64k",
+		mp3Path,
+	)
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return "", false, fmt.Errorf("ffmpeg: %w", err)
+	}
+
+	mp3Info, _ := os.Stat(mp3Path)
+	if mp3Info.Size() > apiMaxBytes {
+		os.Remove(mp3Path)
+		return "", false, fmt.Errorf(
+			"file ancora troppo grande dopo la compressione (%.1f MB)\n"+
+				"  Usa il backend locale per registrazioni lunghe: -backend local",
+			float64(mp3Info.Size())/1024/1024,
+		)
+	}
+	return mp3Path, true, nil
+}
+
+func callWhisperAPI(filePath, lang, apiKey string) (string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	part, err := w.CreateFormFile("file", filepath.Base(filePath))
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(part, f); err != nil {
+		return "", err
+	}
+	_ = w.WriteField("model", apiModel)
+	_ = w.WriteField("response_format", "text")
+	if lang != "auto" {
+		_ = w.WriteField("language", lang)
+	}
+	w.Close()
+
+	req, err := http.NewRequest("POST", apiEndpoint, body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("richiesta API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		var apiErr struct {
+			Error struct{ Message string } `json:"error"`
+		}
+		json.Unmarshal(respBody, &apiErr)
+		msg := apiErr.Error.Message
+		if msg == "" {
+			msg = string(respBody)
+		}
+		return "", fmt.Errorf("API error %d: %s", resp.StatusCode, msg)
+	}
+
+	return strings.TrimSpace(string(respBody)), nil
+}
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+
+func transcribe(wavPath, modelPath, lang, backend, apiKey string) (string, error) {
+	switch backend {
+	case "api":
+		if apiKey == "" {
+			apiKey = os.Getenv("OPENAI_API_KEY")
+		}
+		if apiKey == "" {
+			return "", fmt.Errorf(
+				"API key mancante: imposta OPENAI_API_KEY o usa -api-key <key>",
+			)
+		}
+		return transcribeAPI(wavPath, lang, apiKey)
+	default:
+		return transcribeLocal(wavPath, modelPath, lang)
+	}
+}
+
+// ── Help ──────────────────────────────────────────────────────────────────────
+
 func printWhisperInstallHelp() {
-	fmt.Fprintln(os.Stderr, "\n[transcribe] nessun backend whisper funzionante trovato.")
-	fmt.Fprintln(os.Stderr, "  Opzione 1 — openai-whisper (Python):")
-	fmt.Fprintln(os.Stderr, "    pip install openai-whisper")
-	fmt.Fprintln(os.Stderr, "  Opzione 2 — whisper.cpp (CPU-only, senza CUDA):")
-	fmt.Fprintln(os.Stderr, "    https://github.com/ggerganov/whisper.cpp")
+	fmt.Fprintln(os.Stderr, "\n[transcribe] nessun backend locale trovato.")
+	fmt.Fprintln(os.Stderr, "  openai-whisper: pip install openai-whisper")
+	fmt.Fprintln(os.Stderr, "  whisper.cpp:    https://github.com/ggerganov/whisper.cpp")
+	fmt.Fprintln(os.Stderr, "  oppure usa il backend API: -backend api -api-key <key>")
 }
 
 func printWhisperModelHelp() {
 	fmt.Fprintln(os.Stderr, "\n[transcribe] nessun modello trovato.")
-	fmt.Fprintln(os.Stderr, "  Scarica un modello da: https://huggingface.co/ggerganov/whisper.cpp")
+	fmt.Fprintln(os.Stderr, "  Scarica: https://huggingface.co/ggerganov/whisper.cpp")
 	fmt.Fprintln(os.Stderr, "  Salva in: ~/.local/share/whisper/models/")
 	fmt.Fprintln(os.Stderr, "  Consigliato: ggml-large-v3-turbo.bin")
-	fmt.Fprintln(os.Stderr, "  Oppure specifica il percorso con: -model /path/to/ggml-*.bin")
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

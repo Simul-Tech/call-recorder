@@ -69,8 +69,10 @@ OPTIONS:
   -system  <name>   System audio device (partial name match, auto-detected on Linux/Windows)
   -output  <dir>    Output directory (default: ./recordings)
   -mix=false        Save mic and system as separate WAV files
-  -lang    <lang>   Transcription language (default: auto — rilevamento automatico)
-  -model   <path>   Path to whisper.cpp model (auto-detected if empty)
+  -lang     <lang>  Transcription language (default: auto)
+  -model    <path>  Path to whisper.cpp model (auto-detected if empty)
+  -backend  <name>  Transcription backend: local (default) | api
+  -api-key  <key>   OpenAI API key (default: $OPENAI_API_KEY)
 
 EXAMPLES:
   call-recorder list
