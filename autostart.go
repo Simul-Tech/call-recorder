@@ -74,7 +74,7 @@ func autostartStatus() {
 	var detail string
 	switch runtime.GOOS {
 	case "linux":
-		p := xdgDesktopPath()
+		p := systemdServicePath()
 		if _, err := os.Stat(p); err == nil {
 			enabled, detail = true, p
 		}
@@ -98,32 +98,67 @@ func autostartStatus() {
 	}
 }
 
-// ── Linux (XDG autostart) ─────────────────────────────────────────────────────
+// ── Linux (systemd user service) ─────────────────────────────────────────────
 
-func xdgDesktopPath() string {
-	return filepath.Join(os.Getenv("HOME"), ".config", "autostart", "call-recorder.desktop")
+const systemdServiceTmpl = `[Unit]
+Description=call-recorder tray icon
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart={{.Cmd}}
+Restart=on-failure
+{{- if .APIKey}}
+Environment=OPENAI_API_KEY={{.APIKey}}
+{{- end}}
+
+[Install]
+WantedBy=graphical-session.target
+`
+
+func systemdServicePath() string {
+	return filepath.Join(os.Getenv("HOME"), ".config", "systemd", "user", "call-recorder.service")
 }
 
 func enableLinux(binary string, args []string) error {
-	path := xdgDesktopPath()
+	path := systemdServicePath()
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	cmdLine := binary + " tray"
+	cmd := binary + " tray"
 	if len(args) > 0 {
-		cmdLine += " " + strings.Join(args, " ")
+		cmd += " " + strings.Join(args, " ")
 	}
-	content := "[Desktop Entry]\nType=Application\nName=call-recorder\nExec=" +
-		cmdLine + "\nHidden=false\nNoDisplay=false\nX-GNOME-Autostart-enabled=true\n"
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	data := struct {
+		Cmd    string
+		APIKey string
+	}{cmd, os.Getenv("OPENAI_API_KEY")}
+
+	tmpl, err := template.New("service").Parse(systemdServiceTmpl)
+	if err != nil {
 		return err
 	}
-	fmt.Println("✓ Autostart abilitato:", path)
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
+		return err
+	}
+	exec.Command("systemctl", "--user", "daemon-reload").Run()
+	if err := exec.Command("systemctl", "--user", "enable", "--now", "call-recorder").Run(); err != nil {
+		return fmt.Errorf("systemctl enable: %w\n(verifica che la sessione grafica sia attiva)", err)
+	}
+	fmt.Println("✓ Autostart abilitato (systemd user service):", path)
+	if data.APIKey != "" {
+		fmt.Println("  OPENAI_API_KEY inclusa nel service file")
+	}
 	return nil
 }
 
 func disableLinux() error {
-	path := xdgDesktopPath()
+	exec.Command("systemctl", "--user", "disable", "--now", "call-recorder").Run()
+	path := systemdServicePath()
 	if err := os.Remove(path); err != nil {
 		if os.IsNotExist(err) {
 			fmt.Println("Autostart non era abilitato.")
@@ -131,6 +166,7 @@ func disableLinux() error {
 		}
 		return err
 	}
+	exec.Command("systemctl", "--user", "daemon-reload").Run()
 	fmt.Println("✓ Autostart disabilitato.")
 	return nil
 }
