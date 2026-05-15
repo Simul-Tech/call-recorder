@@ -2,43 +2,57 @@
 
 Registra simultaneamente microfono e audio di sistema durante le chiamate, salva un file WAV mixato e lo trascrive automaticamente.
 
-Usa **[miniaudio](https://miniaud.io/)** tramite `gen2brain/malgo` — libreria C embedded nel pacchetto, **zero dipendenze di sistema** su qualsiasi piattaforma.
+Usa **[miniaudio](https://miniaud.io/)** tramite `gen2brain/malgo` — libreria C embedded nel pacchetto, zero dipendenze di sistema per la sola registrazione.
 
-## Download
+## Installazione
 
-Scarica il binario precompilato dalla pagina **Releases** del repository (`/-/releases`):
+### Script automatico (consigliato)
 
-| Piattaforma | File |
-|---|---|
-| Linux x86_64 | `call-recorder-linux-amd64` |
-| Linux ARM64 | `call-recorder-linux-arm64` |
-| Windows x86_64 | `call-recorder-windows-amd64.exe` |
-| macOS Intel | `call-recorder-macos-amd64` |
-| macOS Apple Silicon | `call-recorder-macos-arm64` |
+**Linux / macOS:**
+```bash
+# Con tray icon (richiede libappindicator su Linux)
+bash <(curl -fsSL https://gitlab.simultech.it/simultech/call-recorder/-/raw/main/install.sh)
+
+# CLI pura, zero dipendenze di sistema
+bash <(curl -fsSL https://gitlab.simultech.it/simultech/call-recorder/-/raw/main/install.sh) --no-tray
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://gitlab.simultech.it/simultech/call-recorder/-/raw/main/install.ps1 | iex
+```
+
+Lo script rileva automaticamente OS e architettura, scarica il binario corretto e installa le dipendenze necessarie.
+
+### Binari precompilati
+
+Scarica dalla pagina **Releases** (`/-/releases`):
+
+| Piattaforma | Con tray | Solo CLI |
+|---|---|---|
+| Linux x86_64 | `call-recorder-linux-amd64` | `call-recorder-linux-amd64-cli` |
+| Linux ARM64 | `call-recorder-linux-arm64` | `call-recorder-linux-arm64-cli` |
+| Windows x86_64 | `call-recorder-windows-amd64.exe` | — |
+| macOS | compila da sorgente | compila da sorgente |
 
 ```bash
-# Linux / macOS — rendi eseguibile e sposta in PATH
+# Linux / macOS
 chmod +x call-recorder-*
 sudo mv call-recorder-* /usr/local/bin/call-recorder
 ```
 
-## Installazione da sorgente
+La variante **CLI** (`-cli`) non include la tray icon e non ha dipendenze di sistema.
+
+### Da sorgente
 
 ```bash
-make install   # compila e installa in ~/go/bin
-make build     # solo binario locale
+make install       # con tray — installa in ~/go/bin
+make build-cli     # CLI pura — nessuna dipendenza di sistema
 ```
 
 Aggiungi `~/go/bin` al PATH se non è già presente:
-
 ```bash
 echo 'export PATH="$PATH:$HOME/go/bin"' >> ~/.zshrc && source ~/.zshrc
-```
-
-### Alias rapido
-
-```bash
-alias rec='call-recorder record'
 ```
 
 ### Script senza installazione
@@ -69,15 +83,40 @@ call-recorder record -mix=false
 call-recorder record -output ~/Registrazioni
 
 # Avvia la tray icon (accetta gli stessi flag di record)
-call-recorder tray
-call-recorder tray -backend api -lang it
+call-recorder tray -lang it -backend api
 ```
 
 I file vengono salvati in `./recordings/` con nome `call_<timestamp>.wav` e `call_<timestamp>.txt`.
 
+## Tray icon
+
+La tray icon permette di gestire le registrazioni senza usare il terminale.
+
+```bash
+# Backend locale (default)
+call-recorder tray
+
+# Backend API OpenAI
+export OPENAI_API_KEY=sk-...
+call-recorder tray -backend api -lang it
+```
+
+Menu disponibile:
+- **Avvia registrazione** — icona verde → rossa, registrazione in background
+- **Ferma registrazione** — salva WAV e avvia trascrizione automatica
+- **Trascrivi ultimo file** — ritrascrive l'ultimo WAV senza registrare di nuovo
+- **Esci** — ferma eventuale registrazione in corso e chiude
+
+**Dipendenza sistema Linux** (solo per la variante con tray):
+```bash
+sudo pacman -S libappindicator-gtk3   # Arch
+sudo apt install libappindicator3-1   # Ubuntu/Debian
+sudo dnf install libappindicator-gtk3 # Fedora
+```
+
 ## Trascrizione automatica
 
-Al termine di ogni registrazione viene avviata automaticamente la trascrizione. Sono disponibili due backend:
+Al termine di ogni registrazione la trascrizione parte automaticamente. Sono disponibili due backend:
 
 ### Backend locale (default)
 
@@ -89,14 +128,12 @@ call-recorder record -lang it -model /path/to/ggml-large-v3-turbo.bin
 ```
 
 **Installazione (scegli uno):**
-
 ```bash
 # openai-whisper (Python)
 pip install openai-whisper
 
 # whisper.cpp (Arch)
 sudo pacman -S whisper.cpp
-# modello consigliato (~800 MB):
 mkdir -p ~/.local/share/whisper/models
 wget -O ~/.local/share/whisper/models/ggml-large-v3-turbo.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin
@@ -104,19 +141,16 @@ wget -O ~/.local/share/whisper/models/ggml-large-v3-turbo.bin \
 
 ### Backend API (OpenAI)
 
-Invia il file audio all'API di OpenAI. Richiede una API key e connessione internet. Costo: ~$0.006/minuto.
+Invia il file audio all'API di OpenAI. Costo: ~$0.006/minuto.
 
 ```bash
 export OPENAI_API_KEY=sk-...
 call-recorder record -lang it -backend api
-
-# oppure inline
-call-recorder record -lang it -backend api -api-key sk-...
 ```
 
-I file vengono registrati a 16kHz mono (~18 MB per 10 minuti). Per call più lunghe di ~13 minuti il file supera il limite di 25 MB dell'API: `ffmpeg` lo comprime automaticamente a MP3 16kbps prima dell'invio (copre call fino a ~3.5 ore), poi cancella il file temporaneo.
+I file sono registrati a 16kHz mono (~18 MB/10 min). Per call > ~13 minuti `ffmpeg` comprime automaticamente in MP3 16kbps prima dell'invio (supporta call fino a ~3.5 ore).
 
-**Dipendenza opzionale:** `ffmpeg` (necessario solo per call > ~13 minuti):
+**Dipendenza opzionale** (solo per call > 13 min con backend API):
 ```bash
 sudo pacman -S ffmpeg   # Arch
 sudo apt install ffmpeg  # Ubuntu/Debian
@@ -156,31 +190,6 @@ Per sentire l'audio mentre registri, crea un Multi-Output Device in Audio MIDI S
 | `-model` | auto-detect | Percorso modello whisper.cpp |
 | `-api-key` | `$OPENAI_API_KEY` | API key OpenAI |
 
-## Tray icon
-
-La tray icon permette di gestire le registrazioni senza usare il terminale.
-
-```bash
-# Backend locale (default)
-call-recorder tray
-
-# Backend API OpenAI
-export OPENAI_API_KEY=sk-...
-call-recorder tray -backend api -lang it
-```
-
-Menu disponibile:
-- **Avvia registrazione** — icona verde → rossa, registrazione in background
-- **Ferma registrazione** — salva WAV e avvia trascrizione automatica
-- **Trascrivi ultimo file** — ritrascrive l'ultimo WAV senza registrare di nuovo
-- **Esci** — ferma eventuale registrazione in corso e chiude
-
-**Dipendenza sistema** (Linux):
-```bash
-sudo pacman -S libappindicator-gtk3   # Arch
-sudo apt install libappindicator3-dev  # Ubuntu/Debian
-```
-
 ## Struttura
 
 | File | Ruolo |
@@ -190,7 +199,10 @@ sudo apt install libappindicator3-dev  # Ubuntu/Debian
 | `recorder.go` | Loop di registrazione, mix, gestione stop |
 | `wav.go` | Scrittura WAV 16-bit PCM (zero dipendenze esterne) |
 | `transcribe.go` | Trascrizione locale (whisper.cpp / openai-whisper) e API |
-| `tray.go` | System tray icon e menu |
+| `tray.go` | System tray icon e menu (build tag: `!notray`) |
+| `tray_stub.go` | Stub per build senza tray (build tag: `notray`) |
 | `icons.go` | Icone generate programmaticamente |
-| `rec.sh` | Script di avvio senza installazione |
-| `Makefile` | `build`, `install`, `clean`, `dist`, `tag` |
+| `install.sh` | Script di installazione Linux/macOS |
+| `install.ps1` | Script di installazione Windows |
+| `rec.sh` | Avvio rapido senza installazione |
+| `Makefile` | `build`, `build-cli`, `install`, `clean`, `dist`, `tag` |
