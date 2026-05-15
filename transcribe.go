@@ -156,18 +156,19 @@ func pythonModelName(preferred string) string {
 // ── API backend ───────────────────────────────────────────────────────────────
 
 func transcribeAPI(wavPath, lang, apiKey string) (string, error) {
-	info, _ := os.Stat(wavPath)
-	fmt.Printf("[transcribe] backend: OpenAI API — file: %s (%.1f MB)\n",
-		filepath.Base(wavPath), float64(info.Size())/1024/1024)
-
-	if info.Size() > apiMaxBytes {
-		return "", fmt.Errorf(
-			"file troppo grande (%.1f MB > 25 MB) — usa il backend locale: -backend local",
-			float64(info.Size())/1024/1024,
-		)
+	uploadPath, isTemp, err := prepareForAPI(wavPath)
+	if err != nil {
+		return "", err
+	}
+	if isTemp {
+		defer os.Remove(uploadPath)
 	}
 
-	text, err := callWhisperAPI(wavPath, lang, apiKey)
+	info, _ := os.Stat(uploadPath)
+	fmt.Printf("[transcribe] backend: OpenAI API — file: %s (%.1f MB)\n",
+		filepath.Base(uploadPath), float64(info.Size())/1024/1024)
+
+	text, err := callWhisperAPI(uploadPath, lang, apiKey)
 	if err != nil {
 		return "", err
 	}
@@ -177,6 +178,39 @@ func transcribeAPI(wavPath, lang, apiKey string) (string, error) {
 		return "", fmt.Errorf("salvataggio trascrizione: %w", err)
 	}
 	return outPath, nil
+}
+
+// prepareForAPI returns a path ready to upload.
+// If the WAV exceeds 25 MB it compresses to MP3 at 16kbps via ffmpeg (~3.5h max).
+func prepareForAPI(wavPath string) (path string, isTemp bool, err error) {
+	info, err := os.Stat(wavPath)
+	if err != nil {
+		return "", false, err
+	}
+	if info.Size() <= apiMaxBytes {
+		return wavPath, false, nil
+	}
+
+	fmt.Printf("[transcribe] file troppo grande (%.1f MB), comprimo con ffmpeg...\n",
+		float64(info.Size())/1024/1024)
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		return "", false, fmt.Errorf(
+			"file supera 25 MB e ffmpeg non è installato\n" +
+				"  Arch:   sudo pacman -S ffmpeg\n" +
+				"  Ubuntu: sudo apt install ffmpeg",
+		)
+	}
+
+	mp3Path := strings.TrimSuffix(wavPath, filepath.Ext(wavPath)) + "_upload.mp3"
+	cmd := exec.Command("ffmpeg", "-y", "-i", wavPath,
+		"-ac", "1", "-b:a", "16k", mp3Path,
+	)
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return "", false, fmt.Errorf("ffmpeg: %w", err)
+	}
+	return mp3Path, true, nil
 }
 
 func callWhisperAPI(filePath, lang, apiKey string) (string, error) {
