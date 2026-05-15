@@ -70,7 +70,7 @@ jobs:
 
       - name: Install Linux tray build deps
         if: matrix.goos == 'linux' && matrix.tags == ''
-        run: sudo apt-get install -y libayatana-appindicator3-dev
+        run: sudo apt-get update && sudo apt-get install -y --fix-missing libayatana-appindicator3-dev
 
       - name: Build
         shell: bash
