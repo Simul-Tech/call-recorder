@@ -87,7 +87,7 @@ call-recorder record -output ~/Registrazioni
 call-recorder tray -lang it
 ```
 
-I file vengono salvati in `./recordings/` con nome `call_<timestamp>.wav` e `call_<timestamp>.txt`.
+I file vengono salvati in `~/recordings/` con nome `call_<timestamp>.wav` e `call_<timestamp>.txt`.
 
 ## Tray icon
 
@@ -189,7 +189,7 @@ Per sentire l'audio mentre registri, crea un Multi-Output Device in Audio MIDI S
 |---|---|---|
 | `-mic` | system default | Nome parziale del device microfono |
 | `-system` | auto-detect | Nome parziale del device audio di sistema |
-| `-output` | `./recordings` | Cartella di output |
+| `-output` | `~/recordings` | Cartella di output |
 | `-mix` | `true` | Mixa mic e sistema in un unico file |
 | `-lang` | `auto` | Lingua per la trascrizione (es. `it`, `en`) |
 | `-backend` | `local` (auto `api` se `$OPENAI_API_KEY` è impostata) | Backend trascrizione: `local` \| `api` |

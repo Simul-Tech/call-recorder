@@ -65,6 +65,13 @@ func main() {
 		}
 		runTray(cfg)
 
+	case "autostart":
+		subcmd := ""
+		if len(os.Args) >= 3 {
+			subcmd = os.Args[2]
+		}
+		runAutostart(subcmd, os.Args[3:])
+
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
 		printUsage()
@@ -85,10 +92,13 @@ USAGE:
   call-recorder tray
       Launch system tray icon
 
+  call-recorder autostart <enable|disable|status> [OPTIONS]
+      Configure autostart at login (XDG on Linux, LaunchAgent on macOS, Registry on Windows)
+
 OPTIONS:
   -mic     <name>   Mic device (partial name match, default: system default)
   -system  <name>   System audio device (partial name match, auto-detected on Linux/Windows)
-  -output  <dir>    Output directory (default: ./recordings)
+  -output  <dir>    Output directory (default: ~/recordings)
   -mix=false        Save mic and system as separate WAV files
   -lang     <lang>  Transcription language (default: auto)
   -model    <path>  Path to whisper.cpp model (auto-detected if empty)

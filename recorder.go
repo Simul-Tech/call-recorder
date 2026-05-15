@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -28,10 +29,13 @@ type RecordConfig struct {
 }
 
 func parseRecordFlags(args []string) (*RecordConfig, error) {
+	home, _ := os.UserHomeDir()
+	defaultOutput := filepath.Join(home, "recordings")
+
 	fs := flag.NewFlagSet("record", flag.ContinueOnError)
 	mic := fs.String("mic", "", "Mic device name (partial match)")
 	system := fs.String("system", "", "System audio device name (partial match)")
-	output := fs.String("output", "recordings", "Output directory")
+	output := fs.String("output", defaultOutput, "Output directory")
 	mix := fs.Bool("mix", true, "Merge into single WAV file")
 	lang := fs.String("lang", "auto", "Transcription language (e.g. it, en, auto)")
 	model := fs.String("model", "", "Path to whisper.cpp model file (auto-detected if empty)")
