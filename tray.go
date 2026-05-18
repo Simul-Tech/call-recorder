@@ -112,6 +112,7 @@ func trayReady() {
 						fmt.Fprintf(os.Stderr, "[tray] errore trascrizione: %v\n", err)
 					} else if txt != "" {
 						fmt.Println("[tray] trascrizione salvata:", txt)
+						notify("Trascrizione completata", txt)
 					}
 					mTranscribe.Enable()
 				}()

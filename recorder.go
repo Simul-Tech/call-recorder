@@ -232,6 +232,8 @@ func record(ctx *malgo.AllocatedContext, cfg *RecordConfig, stopCh <-chan struct
 		}
 	}
 
+	notify("Registrazione completata", fmt.Sprintf("%d file salvati in %s", len(saved), cfg.OutputDir))
+
 	// Transcribe the mixed file (or the mic file as fallback)
 	var toTranscribe string
 	if cfg.Mix && len(saved) > 0 {
@@ -252,6 +254,7 @@ func record(ctx *malgo.AllocatedContext, cfg *RecordConfig, stopCh <-chan struct
 			fmt.Fprintf(os.Stderr, "[transcribe] errore: %v\n", err)
 		} else if txt != "" {
 			saved = append(saved, txt)
+			notify("Trascrizione completata", txt)
 		}
 	}
 

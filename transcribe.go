@@ -136,10 +136,12 @@ func transcribeLocal(wavPath, modelPath, lang string) (string, error) {
 	}
 
 	if fileExists(outBase + ".txt") {
+		fmt.Printf("[transcribe] trascrizione salvata: %s\n", outBase+".txt")
 		return outBase + ".txt", nil
 	}
 	alt := filepath.Join(outDir, filepath.Base(outBase)+".txt")
 	if fileExists(alt) {
+		fmt.Printf("[transcribe] trascrizione salvata: %s\n", alt)
 		return alt, nil
 	}
 	return "", fmt.Errorf("file trascrizione non trovato")
@@ -168,15 +170,19 @@ func transcribeAPI(wavPath, lang, apiKey string) (string, error) {
 	fmt.Printf("[transcribe] backend: OpenAI API — file: %s (%.1f MB)\n",
 		filepath.Base(uploadPath), float64(info.Size())/1024/1024)
 
+	fmt.Print("[transcribe] Invio all'API OpenAI...")
 	text, err := callWhisperAPI(uploadPath, lang, apiKey)
 	if err != nil {
+		fmt.Println()
 		return "", err
 	}
+	fmt.Println(" fatto")
 
 	outPath := strings.TrimSuffix(wavPath, filepath.Ext(wavPath)) + ".txt"
 	if err := os.WriteFile(outPath, []byte(text), 0644); err != nil {
 		return "", fmt.Errorf("salvataggio trascrizione: %w", err)
 	}
+	fmt.Printf("[transcribe] trascrizione salvata: %s\n", outPath)
 	return outPath, nil
 }
 

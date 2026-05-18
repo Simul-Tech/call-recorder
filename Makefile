@@ -12,9 +12,11 @@ build:
 build-cli:
 	go build $(LDFLAGS) -tags notray -o $(BINARY)-cli .
 
+INSTALL_DIR ?= $(shell dirname $(shell which $(BINARY) 2>/dev/null || echo /usr/local/bin/$(BINARY)))
+
 install:
-	go install .
 	go build $(LDFLAGS) -o $(BINARY) .
+	sudo install -m 755 $(BINARY) $(INSTALL_DIR)/$(BINARY)
 
 clean:
 	rm -f $(BINARY) $(BINARY)-cli
