@@ -114,6 +114,18 @@ sudo apt install libappindicator3-1   # Ubuntu/Debian
 sudo dnf install libappindicator-gtk3 # Fedora
 ```
 
+## Notifiche desktop
+
+Al termine della registrazione e della trascrizione viene inviata automaticamente una notifica nativa:
+
+| OS | Meccanismo |
+|---|---|
+| Linux | `notify-send` (libnotify) |
+| macOS | `osascript` (built-in) |
+| Windows | PowerShell balloon tip |
+
+Nessuna dipendenza aggiuntiva su macOS e Windows. Su Linux `notify-send` è incluso in `libnotify` (quasi sempre già installato).
+
 ## Autostart
 
 Configura l'avvio automatico della tray al login:
