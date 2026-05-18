@@ -183,6 +183,7 @@ func record(ctx *malgo.AllocatedContext, cfg *RecordConfig, stopCh <-chan struct
 		return nil, fmt.Errorf("system start: %w", err)
 	}
 
+	notify("Registrazione avviata", "Premi Ctrl+C per fermare")
 	fmt.Println("\n[call-recorder] Recording... Press Ctrl+C to stop.\n")
 	<-stopCh
 	fmt.Println("\n[call-recorder] Stopping...")
@@ -248,6 +249,7 @@ func record(ctx *malgo.AllocatedContext, cfg *RecordConfig, stopCh <-chan struct
 	}
 
 	if toTranscribe != "" {
+		notify("Trascrizione avviata", filepath.Base(toTranscribe))
 		fmt.Println("\n[transcribe] Avvio trascrizione...")
 		txt, err := transcribe(toTranscribe, cfg.ModelPath, cfg.Lang, cfg.Backend, cfg.APIKey)
 		if err != nil {

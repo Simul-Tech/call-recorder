@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -107,6 +108,7 @@ func trayReady() {
 				}
 				mTranscribe.Disable()
 				go func() {
+					notify("Trascrizione avviata", filepath.Base(wav))
 					txt, err := transcribe(wav, traryCfg.ModelPath, traryCfg.Lang, traryCfg.Backend, traryCfg.APIKey)
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "[tray] errore trascrizione: %v\n", err)
