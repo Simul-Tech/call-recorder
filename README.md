@@ -116,7 +116,13 @@ sudo dnf install libappindicator-gtk3 # Fedora
 
 ## Notifiche desktop
 
-Al termine della registrazione e della trascrizione viene inviata automaticamente una notifica nativa:
+Ad ogni fase viene inviata automaticamente una notifica nativa:
+
+- **Registrazione avviata**
+- **Registrazione completata**
+- **Trascrizione avviata**
+- **Trascrizione completata**
+
 
 | OS | Meccanismo |
 |---|---|
